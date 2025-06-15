@@ -110,6 +110,14 @@ You will be prompted to enter:
 
 ---
 
+## Next Steps
+
+- Setup Agent memory.
+- Setup Agent Scheduling.
+- Build a UI.
+
+---
+
 ## License
 
 MIT License
