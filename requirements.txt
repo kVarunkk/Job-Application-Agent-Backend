@@ -8,3 +8,13 @@ nest_asyncio
 PyPDF2
 python-dotenv
 sumy
+langchain-google-vertexai
+psycopg
+langgraph-checkpoint-postgres
+psycopg[binary,pool]  
+fastapi
+uvicorn
+supabase
+cryptography
+langmem
+langchain-groq

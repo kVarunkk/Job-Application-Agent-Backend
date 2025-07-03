@@ -1,7 +1,6 @@
 from sumy.parsers.plaintext import PlaintextParser
 from sumy.nlp.tokenizers import Tokenizer
 from sumy.summarizers.lex_rank import LexRankSummarizer
-from read_pdf import read_pdf
 import nltk
 nltk.download('punkt_tab')
 
