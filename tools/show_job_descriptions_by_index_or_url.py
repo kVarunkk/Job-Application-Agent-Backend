@@ -10,8 +10,8 @@ def show_job_descriptions_by_index_or_url(
     indexes: list[int] = [],
     urls: list[str] = [],
 ) -> str:
-    job_urls = state.get("job_urls", [])
     job_results = state.get("job_results", {})
+    job_urls = list(job_results.keys())
 
     response = []
 

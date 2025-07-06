@@ -3,7 +3,7 @@ from langchain_core.tools import tool, InjectedToolCallId
 from typing import Annotated
 from utils.types import State
 from langgraph.types import Command
-from helpers.shared import resume_embedding_store, model
+from helpers.shared import model
 from langchain_core.messages import ToolMessage
 from sentence_transformers import SentenceTransformer, util
 from helpers.fetch_desc import fetch_desc

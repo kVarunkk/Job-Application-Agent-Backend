@@ -4,9 +4,9 @@ from typing import Annotated
 from utils.types import State
 
 
-@tool(description="Show the list of job postings and descriptions that have already been fetched.")
+@tool(description="Show the list of job postings that have already been fetched.")
 def show_fetched_job_urls(state: Annotated[State, InjectedState]) -> str:
-    job_urls = state.get("job_urls", [])
+    job_urls = state.get("job_results", {}).keys()
     if not job_urls:
         return "No jobs have been fetched yet."
 

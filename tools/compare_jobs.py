@@ -6,7 +6,7 @@ from langchain_core.tools import tool, InjectedToolCallId
 from langchain_core.runnables import RunnableConfig
 from typing import Annotated
 from utils.types import State
-from helpers.shared import resume_embedding_store, model
+from helpers.shared import model
 from sentence_transformers import SentenceTransformer, util
 from helpers.supabase import supabase
 from helpers.read_pdf import read_pdf

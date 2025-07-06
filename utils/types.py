@@ -9,6 +9,7 @@ class JobResult(TypedDict, total=False):
     cover_letter: Optional[str]
     apply_decision: Optional[bool]
     applied: Optional[bool]
+    suitable: Optional[bool]
 
 def merge_job_results(
     left: dict[str, JobResult], right: dict[str, JobResult]
@@ -23,9 +24,8 @@ def merge_job_results(
 # --- Define State Type ---
 class State(TypedDict, total=False):
     messages: Annotated[list[BaseMessage], add_messages]
-    job_urls: list[str]
+    # job_urls: list[str]
     job_urls_seen: list[str]
-    # job_results: dict[str, JobResult]
     job_results: Annotated[dict[str, JobResult], merge_job_results]
     applied_jobs: list[str]
-    context: dict[str, Any]
+    # context: dict[str, Any]

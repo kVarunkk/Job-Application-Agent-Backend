@@ -13,7 +13,7 @@ from tools.generate_cover import generate_cover
 from tools.auto_apply import auto_apply
 from tools.show_fetched_job_urls import show_fetched_job_urls
 from tools.show_job_descriptions import show_job_descriptions
-from tools.show_seen_job_urls import show_seen_job_urls
+# from tools.show_seen_job_urls import show_seen_job_urls
 from tools.show_job_descriptions_by_index_or_url import show_job_descriptions_by_index_or_url
 from tools.show_top_matches import show_top_matches
 from tools.show_applied_jobs import show_applied_jobs
@@ -61,7 +61,7 @@ tools = [
     auto_apply,
     show_fetched_job_urls,
     show_job_descriptions,
-    show_seen_job_urls,
+    # show_seen_job_urls,
     show_cover_letters,
     show_applied_jobs,
     show_job_descriptions_by_index_or_url,

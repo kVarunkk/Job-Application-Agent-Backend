@@ -5,13 +5,10 @@ from langchain_core.tools import tool, InjectedToolCallId
 from langchain_core.runnables import RunnableConfig
 from typing import Annotated
 from utils.types import State
-from helpers.shared import model
+from helpers.shared import model, job_embedding_store
 from sentence_transformers import util
 from helpers.fetch_desc import fetch_desc
-from typing import Any
 
-# You may already have this
-job_embedding_store: dict[str, Any] = {}
 
 @tool("find_similar_jobs", description="Find jobs similar to a given job using embeddings.")
 async def find_similar_jobs(

@@ -2,7 +2,7 @@ from dotenv import load_dotenv
 load_dotenv()
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import HumanMessage, AIMessageChunk
@@ -12,6 +12,7 @@ from helpers.supabase import supabase
 from typing import AsyncGenerator, cast
 import json
 import asyncio
+from helpers.workflow_graph import builder
 
 app = FastAPI()
 
@@ -71,3 +72,53 @@ async def chat(agent_id: str, request: Request):
                     yield f"data: {json.dumps({'text': token.content})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@app.post("/run-workflow/{agent_id}")
+async def run_workflow(agent_id: str, request: Request):
+    # Get agent config from Supabase
+    workflow_res = supabase.table("workflows").select("*, agents(filter_url, resume_path)").eq("agent_id", agent_id).single().execute()
+    if getattr(workflow_res, "error", None) is not None or not workflow_res.data:
+        raise HTTPException(status_code=404, detail="Workflow not found.")
+        
+    workflow = workflow_res.data
+    agent = workflow.get("agents")
+
+    # Parse optional config override
+    # body = await request.json()
+    max_jobs_to_apply = workflow.get("no_jobs") or 5
+    similarity_threshold = 0.4
+    job_title_contains = workflow.get("job_title_contains") or []
+    auto_apply = workflow.get("auto_apply") or False
+    interval = workflow.get("interval") or "0 8 * * *"
+    required_keywords = workflow.get("required_keywords") or []
+    excluded_keywords = workflow.get("excluded_keywords") or []
+    job_title_contains = workflow.get("job_title_contains") or []
+
+    # Construct config
+    config: RunnableConfig = {
+        "configurable": {
+            "thread_id": agent_id,
+            "filter_url": agent.get("filter_url", ""),
+            "resume_path": agent.get("resume_path", ""),
+            "max_jobs_to_apply": max_jobs_to_apply,
+            "similarity_threshold": similarity_threshold,
+            "required_keywords": json.dumps(list(required_keywords)),
+            "excluded_keywords": json.dumps(list(excluded_keywords)),
+            "interval": interval,
+            "job_title_contains": json.dumps(list(job_title_contains)),
+            "auto_apply": auto_apply
+        }
+    }
+
+
+    # Run the workflow graph
+    async with AsyncPostgresSaver.from_conn_string(DB_URI) as checkpointer:
+        workflow_graph = builder.compile(checkpointer=checkpointer)
+
+        try:
+            await workflow_graph.ainvoke({}, config=config)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    return JSONResponse(content={"status": "success", "message": "Workflow completed."})
