@@ -20,3 +20,4 @@ langmem
 langchain-groq
 croniter
 slowapi
+resend

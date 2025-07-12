@@ -101,7 +101,7 @@ async def chat(agent_id: str, request: Request, user: dict = Depends(get_current
 @limiter.limit("10/minute")
 async def run_workflow(agent_id: str, request: Request, user= Depends(get_current_user)):
     # Get agent config from Supabase
-    workflow_res = supabase.table("workflows").select("*, agents(filter_url, resume_path, type)").eq("agent_id", agent_id).single().execute()
+    workflow_res = supabase.table("workflows").select("*, agents(name, filter_url, resume_path, type, user_email)").eq("agent_id", agent_id).single().execute()
     if getattr(workflow_res, "error", None) is not None or not workflow_res.data:
         raise HTTPException(status_code=404, detail="Workflow not found.")
         
@@ -138,7 +138,9 @@ async def run_workflow(agent_id: str, request: Request, user= Depends(get_curren
             "auto_apply": auto_apply,
             "start_time": start_time,
             "agent_type": agent.get("type"),
-            "recursion_limit": 50
+            "recursion_limit": 50,
+            "user_email": agent.get("user_email", ""),
+            "agent_name": agent.get("name", f"Agent-{agent_id}"),
         }
     }
 
@@ -158,4 +160,6 @@ async def run_workflow(agent_id: str, request: Request, user= Depends(get_curren
 @app.get("/test")
 @limiter.limit("2/minute")
 def testFunc(request: Request, user= Depends(get_current_user)):
+#    response = supabase.table("auth.users").select("*").execute()
+#    print(response)
    return JSONResponse(content={"status": "success"})

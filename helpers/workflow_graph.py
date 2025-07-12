@@ -23,6 +23,7 @@ from helpers.remoteok.scrape_jobs_core import scrape_jobs_core_remoteok
 import json
 from typing import Dict
 from datetime import datetime
+from helpers.send_workflow_completion_email import send_success_email, send_error_email
 
 
 def entry_node(state: State, config: RunnableConfig):
@@ -365,6 +366,15 @@ async def store_workflow_run_result(state: State, config: RunnableConfig) -> dic
 
         supabase.table("workflows").update({"last_run_at": config_data.get("start_time", "")}).eq("id", workflow_id).execute()
 
+        send_success_email(
+            to=[config_data.get("user_email", "")],
+            agent_name= config_data.get("agent_name", ""),
+            summary= f"Workflow completed successfully. {suitable_count} suitable jobs found, {applied_count} applied." if success else (
+                f"Workflow completed with issues. {suitable_count} suitable jobs found, {applied_count} applied. "
+                f"{'Not enough URLs to scrape.' if not_enough_urls else 'Job Postings exhausted for the current Job Posting URL. Update your Agents Job Posting URL.'}"
+            )
+        )
+
         # Return state update
         return {
             "suitable_jobs_scraped_or_applied_in_current_run": [],
@@ -389,6 +399,12 @@ async def store_workflow_run_result(state: State, config: RunnableConfig) -> dic
             }).execute()
 
             supabase.table("workflows").update({"last_run_at": config_data.get("start_time", "")}).eq("id", workflow_id).execute()
+
+            send_error_email(
+                to=[config_data.get("user_email", "")],
+                agent_name=config_data.get("agent_name", ""),
+                error_message= str(e)
+            )
         except Exception as inner_e:
             print(f"❌ Could not log error to DB: {inner_e}")
 
