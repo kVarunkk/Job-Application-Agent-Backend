@@ -1,9 +1,7 @@
 from typing import Dict, List
 from playwright.async_api import async_playwright
 
-async def scrape_jobs_core(
-    username: str,
-    password: str,
+async def scrape_jobs_core_remoteok(
     filter_url: str,
     existing_urls: List[str],
     no_jobs: int = 10
@@ -18,36 +16,34 @@ async def scrape_jobs_core(
         ))
         page = await context.new_page()
 
-        # Log in
-        await page.goto("https://account.ycombinator.com/?continue=https%3A%2F%2Fwww.workatastartup.com%2F", wait_until="domcontentloaded")
-        await page.fill('input[name="username"]', username)
-        await page.fill('input[name="password"]', password)
-        await page.click('button[type="submit"]')
-        await page.wait_for_timeout(5000)
-
-        # Navigate to filtered job page
         await page.goto(filter_url, timeout=60000)
-        await page.wait_for_selector("a:has-text('View Job')", timeout=10000)
+        await page.wait_for_selector("tr.job[data-url]", timeout=10000)
 
         scrolls_done = 0
         max_scrolls = 30
 
         while len(new_urls) < no_jobs and scrolls_done < max_scrolls:
-            anchors = await page.locator("a:has-text('View Job')").all()
-            for a in anchors:
-                href = await a.get_attribute("href")
-                if href and href not in existing_urls and href not in new_urls:
-                    new_urls.add(href)
-                    if len(new_urls) >= no_jobs:
-                        break
+            rows = await page.locator("tr.job[data-url]").all()
+
+            for row in rows:
+                url = await row.get_attribute("data-url")
+                if url:
+                    full_url = f"https://remoteok.com{url}" 
+                    if full_url not in existing_urls and full_url not in new_urls:
+                        new_urls.add(full_url)
+                        if len(new_urls) >= no_jobs:
+                            break
 
             prev_height = await page.evaluate("document.body.scrollHeight")
             await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            await page.wait_for_timeout(4000)
+            await page.wait_for_timeout(3000)
             new_height = await page.evaluate("document.body.scrollHeight")
+
             scrolls_done += 1
             if new_height == prev_height:
                 break
 
         await browser.close()
+
     return list(new_urls)
+

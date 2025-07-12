@@ -9,31 +9,20 @@ from utils.types import State
 from fastapi import HTTPException
 from helpers.decrypt import decrypt_aes_key, decrypt_password
 from helpers.supabase import supabase
-from helpers.scrape_jobs_core import scrape_jobs_core
+from helpers.remoteok.scrape_jobs_core import scrape_jobs_core_remoteok
 
-@tool(description="Scrape a list of job posting URLs from the Y Combinator job board using user login and a URL that contains the job postings from the config that has already been provided by the user. If user does not provide the number of job posting URLs to scrape, then take it as 5. You also have access to the job urls seen by the user in the current session, so you can avoid scraping those again.")
-async def scrape_jobs(
+@tool(description="Scrape a list of job posting URLs from the Remote OK job board using a URL that contains the job postings from the config that has already been provided by the user. If user does not provide the number of job posting URLs to scrape, then take it as 5. You also have access to the job urls seen by the user in the current session, so you can avoid scraping those again.")
+async def scrape_jobs_remoteok(
     config: RunnableConfig,
     state: Annotated[State, InjectedState],
     tool_call_id: Annotated[str, InjectedToolCallId],
     no_jobs: int = 10
 ) -> Command:
     try:
-        creds_res = supabase.table("encrypted_credentials_yc").select("*").eq("agent_id", config.get("configurable", {}).get("thread_id") or "").single().execute()
-        if getattr(creds_res, "error", None) or not creds_res.data:
-            raise Exception("Could not fetch credentials")
-
-        creds = creds_res.data
-        username = creds.get("username") or ""
-        padded_aes_key = decrypt_aes_key(creds["aes_key_enc"])
-        pad_len = padded_aes_key[-1]
-        aes_key = padded_aes_key[:-pad_len]
-        password = decrypt_password(creds["password_enc"], aes_key)
-
         filter_url = config.get("configurable", {}).get("filter_url", "")
         seen_urls = list(state.get("job_results", {}).keys())
 
-        new_urls = await scrape_jobs_core(username, password, filter_url, seen_urls, no_jobs)
+        new_urls = await scrape_jobs_core_remoteok(filter_url, seen_urls, no_jobs)
 
         updated_results = state.get("job_results", {})
         for url in new_urls:

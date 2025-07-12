@@ -13,7 +13,6 @@ from tools.generate_cover import generate_cover
 from tools.auto_apply import auto_apply
 from tools.show_fetched_job_urls import show_fetched_job_urls
 from tools.show_job_descriptions import show_job_descriptions
-# from tools.show_seen_job_urls import show_seen_job_urls
 from tools.show_job_descriptions_by_index_or_url import show_job_descriptions_by_index_or_url
 from tools.show_top_matches import show_top_matches
 from tools.show_applied_jobs import show_applied_jobs
@@ -22,6 +21,7 @@ from tools.list_available_actions import list_available_actions
 from tools.filter_jobs_by_keyword import filter_jobs_by_keyword
 from tools.compare_jobs_with_each_other import compare_jobs_with_each_other
 from tools.find_similar_jobs import find_similar_jobs
+from tools.show_suitable_jobs import show_suitable_jobs
 from langmem.short_term import SummarizationNode
 from langchain_core.messages.utils import count_tokens_approximately
 from langchain_core.messages import RemoveMessage, BaseMessage, ToolMessage, AIMessage, HumanMessage, SystemMessage
@@ -35,7 +35,48 @@ from typing import Union, Literal
 from langchain_core.messages import BaseMessage, AIMessage
 from pydantic import BaseModel
 import uuid
-from langchain_groq import ChatGroq
+from tools.remoteok.scrape_jobs import scrape_jobs_remoteok
+from tools.remoteok.fetch_description import fetch_description_remoteok
+from langchain_core.runnables import RunnableConfig
+from tools.remoteok.auto_apply import auto_apply_remoteok
+
+common_tools = [
+    compare_job,
+    show_top_matches,
+    generate_cover,
+    show_fetched_job_urls,
+    show_job_descriptions,
+    show_suitable_jobs,
+    show_cover_letters,
+    show_applied_jobs,
+    show_job_descriptions_by_index_or_url,
+    list_available_actions,
+    filter_jobs_by_keyword,
+    compare_jobs_with_each_other,
+    find_similar_jobs
+]
+
+yc_tools = [
+    *common_tools,
+    scrape_jobs,
+    fetch_description,
+    auto_apply
+]
+
+remoteok_tools = [
+    *common_tools,
+    scrape_jobs_remoteok,
+    fetch_description_remoteok,
+    auto_apply_remoteok  
+]
+
+TOOL_REGISTRY = {
+    "ycombinator": yc_tools,
+    "remoteok": remoteok_tools,
+}
+
+def get_tools_for_agent(agent_type: str):
+    return TOOL_REGISTRY.get(agent_type, common_tools)
 
 
 def collect_recent_ai_messages(messages: list) -> dict[str, str]:
@@ -51,25 +92,6 @@ def collect_recent_ai_messages(messages: list) -> dict[str, str]:
         "prompt": str(human_prompt),
         "ai_messages": "\n\n".join(reversed(collected))
     }
-
-tools = [
-    scrape_jobs,
-    fetch_description,
-    compare_job,
-    show_top_matches,
-    generate_cover,
-    auto_apply,
-    show_fetched_job_urls,
-    show_job_descriptions,
-    # show_seen_job_urls,
-    show_cover_letters,
-    show_applied_jobs,
-    show_job_descriptions_by_index_or_url,
-    list_available_actions,
-    filter_jobs_by_keyword,
-    compare_jobs_with_each_other,
-    find_similar_jobs
-]
 
 
 def chatbot_output_condition(
@@ -104,21 +126,6 @@ def chatbot_output_condition(
 
     last = messages[-1]
 
-    # Patch Gemini function_call → tool_calls
-    # if isinstance(last, AIMessage) and not last.tool_calls:
-    #     func_call = last.additional_kwargs.get("function_call")
-    #     if func_call and isinstance(func_call, dict):
-    #         name = func_call.get("name")
-    #         args = func_call.get("arguments")
-    #         if name and args:
-    #             tool_id = last.id or str(uuid.uuid4())
-    #             last.tool_calls = [{
-    #                 "id": tool_id,
-    #                 "name": name,
-    #                 "args": args,
-    #                 "type": "tool_call"
-    #             }]
-
     if isinstance(last, AIMessage):
         if last.tool_calls:
             return "tools"
@@ -131,7 +138,7 @@ def chatbot_output_condition(
 
 llm = ChatVertexAI(model="gemini-2.0-flash-001")
 # llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=os.getenv("GROQ_API_KEY"))
-llm_with_tools = llm.bind_tools(tools)
+# llm_with_tools = llm.bind_tools(tools)
 
 def filter_messages(state: State) -> dict:
     messages = drop_unresolved_tool_calls(state.get("messages", []))
@@ -158,20 +165,6 @@ def drop_unresolved_tool_calls(messages: list[BaseMessage]) -> list[BaseMessage]
     for i, msg in enumerate(messages):
         if isinstance(msg, AIMessage):
             tool_calls = msg.tool_calls or []
-
-            # Patch from function_call → tool_call
-            # if not tool_calls and "function_call" in msg.additional_kwargs:
-            #     func_call = msg.additional_kwargs["function_call"]
-            #     if isinstance(func_call, dict) and "name" in func_call:
-            #         tool_id = msg.id or str(uuid.uuid4())
-            #         tool_calls = [{
-            #             "id": tool_id,
-            #             "name": func_call["name"],
-            #             "args": func_call["arguments"],
-            #             "type": "tool_call"
-            #         }]
-            #         msg.tool_calls = tool_calls
-
             valid_tool_calls = [tc for tc in tool_calls if tc["id"] in resolved_ids]
             msg.tool_calls = valid_tool_calls
 
@@ -185,7 +178,10 @@ def drop_unresolved_tool_calls(messages: list[BaseMessage]) -> list[BaseMessage]
     return filtered
 
 
-def chatbot(state: State) -> dict:
+def chatbot(state: State, config: RunnableConfig) -> dict:
+    agent_type = config.get("configurable", {}).get("agent_type", "ycombinator")
+    tools = get_tools_for_agent(agent_type)
+    llm_with_tools = llm.bind_tools(tools)
     raw_messages = drop_unresolved_tool_calls(state.get("messages", []))
     messages = [msg for msg in raw_messages if not isinstance(msg, RemoveMessage)]
     return {"messages": [llm_with_tools.invoke(messages)]}
@@ -250,16 +246,21 @@ async def suggest_followups(state: State) -> dict[str, Any]:
     }    
 
 
-graph_builder = StateGraph(State)
-graph_builder.add_node("summarize", summarization_node)
-graph_builder.add_node("chatbot", chatbot)
-graph_builder.add_node("tools", ToolNode(tools=tools))
-graph_builder.add_node("filter_messages", filter_messages)
-graph_builder.add_node("suggest_followups", suggest_followups)
+def build_graph(agent_type: str):
+    tools = get_tools_for_agent(agent_type)
 
-graph_builder.add_edge(START, "filter_messages")
-graph_builder.add_edge("filter_messages", "summarize")
-graph_builder.add_edge("summarize", "chatbot")
-graph_builder.add_conditional_edges("chatbot", chatbot_output_condition)
-graph_builder.add_edge("tools", "chatbot")
-graph_builder.set_finish_point("suggest_followups")
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("summarize", summarization_node)
+    graph_builder.add_node("chatbot", chatbot)
+    graph_builder.add_node("tools", ToolNode(tools=tools))
+    graph_builder.add_node("filter_messages", filter_messages)
+    graph_builder.add_node("suggest_followups", suggest_followups)
+
+    graph_builder.add_edge("filter_messages", "summarize")
+    graph_builder.add_edge("summarize", "chatbot")
+    graph_builder.add_conditional_edges("chatbot", chatbot_output_condition)
+    graph_builder.add_edge("tools", "chatbot")
+    graph_builder.set_entry_point("filter_messages")
+    graph_builder.set_finish_point("suggest_followups")
+
+    return graph_builder

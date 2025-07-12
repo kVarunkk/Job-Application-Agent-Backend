@@ -24,8 +24,9 @@ def merge_job_results(
 # --- Define State Type ---
 class State(TypedDict, total=False):
     messages: Annotated[list[BaseMessage], add_messages]
-    # job_urls: list[str]
     job_urls_seen: list[str]
     job_results: Annotated[dict[str, JobResult], merge_job_results]
-    applied_jobs: list[str]
-    # context: dict[str, Any]
+    suitable_jobs_scraped_or_applied_in_current_run: list[str]
+    started_at: str
+    ended_at: str
+    not_enough_urls: bool

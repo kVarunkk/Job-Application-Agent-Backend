@@ -18,3 +18,5 @@ supabase
 cryptography
 langmem
 langchain-groq
+croniter
+slowapi
